@@ -1,28 +1,49 @@
-from keras.applications.vgg16 import VGG16, preprocess_input
+from keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
 from keras.models import Model
-from keras.layers import Input, Dense, Activation, Lambda, Flatten
-from sklearn.model_selection import train_test_split
-from keras.preprocessing.image import ImageDataGenerator
-from keras.utils import to_categorical
-from keras.optimizers import Adam
+from keras import layers
+from PIL import Image
 import numpy as np
-import PIL
-import os
-from tqdm.notebook import tqdm
-import shutil
 
 
-train_datagen = ImageDataGenerator(rotation_range=20, width_shift_range=0.25, height_shift_range=0.25, horizontal_flip=True, preprocessing_function=preprocess_input)
-img_size = (256, 256)
-train_generator = train_datagen.flow_from_directory(
-    './dataset/plants',
-    target_size=img_size,
-    batch_size=2,
-    class_mode='categorical',
-    shuffle=False)
+def get_model_mobilenetv2_224(weights_path):
+    model = MobileNetV2(include_top=False, input_shape=(224, 224, 3))
+    for layer in model.layers:
+        layer.trainable = False
+    x = model.layers[-1].output
+    # x = Flatten()(x)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(128, activation='relu')(x)
+    x = layers.Dense(128, activation='relu')(x)
+    x = layers.Dense(128, activation='relu')(x)
+    output = layers.Dense(10, activation='softmax')(x)
+    model = Model(inputs=model.inputs, outputs=output)
+    model.load_weights(weights_path)
+    return model
 
-a, b = train_generator.next()
-print(b)
+
+def load_image_to_array(image_paths):
+    images = []
+    for path in image_paths:
+        img = Image.open(path, 'r')
+        img = img.resize((224, 224))
+        img = np.array(img)
+        images.append(img)
+    return np.array(images)
+
+
+def prediction(model, image_paths):
+    images = load_image_to_array(image_paths)
+    results = model.predict(images)
+    sorted_indices = np.argsort(-results)
+    return sorted_indices, results
+    # for r in results:
+
+
+if __name__ == '__main__':
+    model = get_model_mobilenetv2_224('./plants_mobilenetv2_224.h5')
+    # model.summary()
+    indices, result = prediction(model, ['/Volumes/MacOS Data/Project/Python/plants-identification/plants-identification-flask/app/api/image.jpg'])
+    print(indices, result)
 
 
 # model v1
@@ -31,7 +52,35 @@ print(b)
 #     layer.trainable=False
 # flat1 = Flatten()(model.layers[-1].output)
 # class1 = Dense(512, activation='relu')(flat1)
-# # class1 = Dense(256, activation='relu')(class1)
+# class1 = Dense(256, activation='relu')(class1)
 # output = Dense(10, activation='softmax')(class1)
-# # define new model
+# model = Model(inputs=model.inputs, outputs=output)
+
+
+# model v2
+# # https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
+# model = VGG16(include_top=False, input_shape=(256, 256, 3))
+# for layer in model.layers:
+#     layer.trainable=False
+
+# x = model.layers[-1].output
+# x = Flatten()(x)
+# x = Dense(128, activation='relu')(x)
+# x = Dense(128, activation='relu')(x)
+# x = Dense(128, activation='relu')(x)
+# output = Dense(10, activation='softmax')(x)
+# model = Model(inputs=model.inputs, outputs=output)
+
+
+# model mobilenetv2 224x224x3
+# model = MobileNetV2(include_top=False, input_shape=(224, 224, 3))
+# for layer in model.layers:
+#     layer.trainable = False
+# x = model.layers[-1].output
+# # x = Flatten()(x)
+# x = layers.GlobalAveragePooling2D()(x)
+# x = layers.Dense(128, activation='relu')(x)
+# x = layers.Dense(128, activation='relu')(x)
+# x = layers.Dense(128, activation='relu')(x)
+# output = layers.Dense(10, activation='softmax')(x)
 # model = Model(inputs=model.inputs, outputs=output)
